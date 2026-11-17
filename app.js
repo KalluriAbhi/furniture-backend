@@ -18,7 +18,16 @@ const verifyToken = (req, res, next) => {
 
 const app = express();
 
-app.use(cors());
+// --- 1. Proper CORS Configuration (Placed at the top!) ---
+app.use(cors({
+  origin: [
+    'https://furniture-frontend-beta-seven.vercel.app', 
+    'http://localhost:5173', 
+    'http://localhost:3000'
+  ],
+  credentials: true
+}));
+
 app.use(express.json());
 
 // --- Ensure uploads directory exists & serve statically ---
@@ -77,12 +86,13 @@ app.post('/api/orders', orderController.createOrder);
 app.get('/api/admin/orders', orderController.getAllOrders);
 app.get('/api/admin/products', comboController.getAllProducts); 
 
-// Admin Image Upload Endpoint
+// --- 2. Dynamic Image Upload Endpoint (Works locally and on Render) ---
 app.post('/api/admin/upload', verifyToken, upload.single('image'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
-  const imageUrl = `http://localhost:5000/uploads/${req.file.filename}`;
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  const imageUrl = `${baseUrl}/uploads/${req.file.filename}`;
   res.json({ imageUrl });
 });
 
@@ -146,13 +156,12 @@ app.put('/api/admin/products/:id', verifyToken, async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
- // Admin Delete Product (DELETE)
+
+// Admin Delete Product (DELETE)
 const deleteProductHandler = async (req, res) => {
   const { id } = req.params;
   try {
-    // Extract only the numbers from the id string (e.g. "#102" becomes "102")
     const cleanId = id.replace(/\D/g, '');
-    
     const result = await db.query(
       'DELETE FROM products WHERE product_id = $1 RETURNING *', 
       [cleanId]
@@ -169,7 +178,6 @@ const deleteProductHandler = async (req, res) => {
   }
 };
 
-// Register the handler exactly once for both route patterns
 app.delete('/api/products/:id', verifyToken, deleteProductHandler);
 app.delete('/api/admin/products/:id', verifyToken, deleteProductHandler);
 
