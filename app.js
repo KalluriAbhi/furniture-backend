@@ -21,8 +21,8 @@ const app = express();
 // --- 1. Proper CORS Configuration (Placed at the top!) ---
 app.use(cors({
   origin: [
-    'https://furniture-frontend-beta-seven.vercel.app', 
-    'http://localhost:5173', 
+    'https://furniture-frontend-beta-seven.vercel.app',
+    'http://localhost:5173',
     'http://localhost:3000'
   ],
   credentials: true
@@ -31,10 +31,8 @@ app.use(cors({
 app.use(express.json());
 
 // --- Ensure uploads directory exists & serve statically ---
-const uploadDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
-}
+const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
+fs.mkdirSync(uploadDir, { recursive: true });
 app.use('/uploads', express.static(uploadDir));
 
 // --- Configure Multer storage ---
@@ -84,17 +82,21 @@ app.post('/api/orders', orderController.createOrder);
 
 // Admin Get Routes
 app.get('/api/admin/orders', orderController.getAllOrders);
-app.get('/api/admin/products', comboController.getAllProducts); 
+app.get('/api/admin/products', comboController.getAllProducts);
 
-// --- 2. Dynamic Image Upload Endpoint (Works locally and on Render) ---
-app.post('/api/admin/upload', verifyToken, upload.single('image'), (req, res) => {
+// --- 2. Dynamic Image Upload Endpoint ---
+const uploadImageHandler = (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+  const baseUrl = `${protocol}://${req.get('host')}`;
   const imageUrl = `${baseUrl}/uploads/${req.file.filename}`;
-  res.json({ imageUrl });
-});
+  res.json({ imageUrl, url: imageUrl });
+};
+
+app.post('/api/admin/upload-image', verifyToken, upload.single('image'), uploadImageHandler);
+app.post('/api/admin/upload', verifyToken, upload.single('image'), uploadImageHandler);
 
 // Admin Create Product (POST) - supports both /api/products and /api/admin/products
 const createProductHandler = async (req, res) => {
@@ -147,7 +149,7 @@ app.put('/api/admin/products/:id', async (req, res) => {
   } = req.body;
 
   try {
-    const result = await pool.query(
+    const result = await db.query(
       `UPDATE products
        SET name = $1,
            category = $2,
@@ -199,14 +201,14 @@ const deleteProductHandler = async (req, res) => {
   try {
     const cleanId = id.replace(/\D/g, '');
     const result = await db.query(
-      'DELETE FROM products WHERE product_id = $1 RETURNING *', 
+      'DELETE FROM products WHERE product_id = $1 RETURNING *',
       [cleanId]
     );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Product not found in database' });
     }
-    
+
     res.json({ message: 'Product deleted successfully', deleted: result.rows[0] });
   } catch (err) {
     console.error('Detailed Error deleting product:', err.message);
