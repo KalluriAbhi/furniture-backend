@@ -99,30 +99,70 @@ app.post('/api/admin/upload-image', verifyToken, upload.single('image'), uploadI
 app.post('/api/admin/upload', verifyToken, upload.single('image'), uploadImageHandler);
 
 // Admin Create Product (POST) - supports both /api/products and /api/admin/products
+
 const createProductHandler = async (req, res) => {
-  const { name, sku, base_price, stock_quantity, material, craft_origin, care_instructions, image_url } = req.body;
+  const {
+    name,
+    sku,
+    category,
+    sub_category,
+    base_price,
+    original_price,
+    stock_quantity,
+    is_new_arrival,
+    material,
+    craft_origin,
+    care_instructions,
+    image_url,
+    video_url,
+    description
+  } = req.body;
+
   try {
     const generatedSku = sku || `SKU-${Date.now()}`;
     const query = `
-      INSERT INTO products (name, sku, base_price, stock_quantity, material, craft_origin, care_instructions, image_url)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO products (
+        name,
+        sku,
+        category,
+        sub_category,
+        base_price,
+        original_price,
+        stock_quantity,
+        is_new_arrival,
+        material,
+        craft_origin,
+        care_instructions,
+        image_url,
+        video_url,
+        description
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *;
     `;
+
     const values = [
       name,
       generatedSku,
-      parseFloat(base_price),
+      category || 'Bedsheets',
+      sub_category || '',
+      parseFloat(base_price) || 0,
+      original_price !== '' && original_price != null ? parseFloat(original_price) : null,
       parseInt(stock_quantity, 10) || 0,
+      Boolean(is_new_arrival),
       material || '',
-      craft_origin || '',
+      craft_origin || 'Bilberry home & hangers',
       care_instructions || '',
-      image_url || ''
+      image_url || '',
+      video_url || '',
+      description || ''
     ];
+
     const result = await db.query(query, values);
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    console.error('Error creating product:', err.message);
-    res.status(500).json({ error: 'Failed to create product' });
+    console.error('Error creating product:', err);
+    res.status(500).json({ error: err.message || 'Failed to create product' });
   }
 };
 
