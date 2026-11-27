@@ -128,32 +128,68 @@ app.post('/api/products', verifyToken, createProductHandler);
 app.post('/api/admin/products', verifyToken, createProductHandler);
 
 // Admin Update Product (PUT)
-app.put('/api/admin/products/:id', verifyToken, async (req, res) => {
+app.put('/api/admin/products/:id', async (req, res) => {
   const { id } = req.params;
-  const { name, sku, base_price, stock_quantity, material, craft_origin, care_instructions, image_url } = req.body;
+  const {
+    name,
+    category,
+    sub_category,
+    base_price,
+    original_price,
+    stock_quantity,
+    is_new_arrival,
+    material,
+    craft_origin,
+    care_instructions,
+    image_url,
+    video_url,
+    description
+  } = req.body;
+
   try {
-    const query = `
-      UPDATE products 
-      SET name = $1, sku = $2, base_price = $3, stock_quantity = $4, material = $5, craft_origin = $6, care_instructions = $7, image_url = $8
-      WHERE product_id = $9
-      RETURNING *;
-    `;
-    const values = [
-      name,
-      sku,
-      base_price,
-      stock_quantity,
-      material,
-      craft_origin,
-      care_instructions,
-      image_url,
-      id
-    ];
-    const result = await db.query(query, values);
+    const result = await pool.query(
+      `UPDATE products
+       SET name = $1,
+           category = $2,
+           sub_category = $3,
+           base_price = $4,
+           original_price = $5,
+           stock_quantity = $6,
+           is_new_arrival = $7,
+           material = $8,
+           craft_origin = $9,
+           care_instructions = $10,
+           image_url = $11,
+           video_url = $12,
+           description = $13
+       WHERE product_id = $14
+       RETURNING *`,
+      [
+        name,
+        category || 'Bedding Set',
+        sub_category || '',
+        Number(base_price || 0),
+        original_price ? Number(original_price) : null,
+        Number(stock_quantity || 0),
+        Boolean(is_new_arrival),
+        material || '',
+        craft_origin || 'Bilberry home & hangers',
+        care_instructions || '',
+        image_url || '',
+        video_url || '',
+        description || '',
+        id
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
     res.json(result.rows[0]);
   } catch (err) {
-    console.error('Error updating product:', err.message);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Error updating product:', err);
+    res.status(500).json({ error: 'Failed to update product' });
   }
 });
 
