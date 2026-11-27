@@ -99,7 +99,6 @@ app.post('/api/admin/upload-image', verifyToken, upload.single('image'), uploadI
 app.post('/api/admin/upload', verifyToken, upload.single('image'), uploadImageHandler);
 
 // Admin Create Product (POST) - supports both /api/products and /api/admin/products
-
 const createProductHandler = async (req, res) => {
   const {
     name,
@@ -120,10 +119,35 @@ const createProductHandler = async (req, res) => {
 
   try {
     const generatedSku = sku || `SKU-${Date.now()}`;
+
+    let categoryId = req.body.category_id ? Number(req.body.category_id) : null;
+    if (!categoryId && category) {
+      try {
+        const catRes = await db.query(
+          'SELECT category_id FROM categories WHERE LOWER(name) = LOWER($1) LIMIT 1',
+          [category]
+        );
+        if (catRes.rows[0]?.category_id) {
+          categoryId = catRes.rows[0].category_id;
+        }
+      } catch (_) {
+        // Ignore if categories table has a different structure and fall back below
+      }
+    }
+    if (!categoryId) {
+      try {
+        const fallbackCat = await db.query('SELECT category_id FROM categories ORDER BY category_id ASC LIMIT 1');
+        categoryId = fallbackCat.rows[0]?.category_id || 1;
+      } catch (_) {
+        categoryId = 1;
+      }
+    }
+
     const query = `
       INSERT INTO products (
         name,
         sku,
+        category_id,
         category,
         sub_category,
         base_price,
@@ -137,13 +161,14 @@ const createProductHandler = async (req, res) => {
         video_url,
         description
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *;
     `;
 
     const values = [
       name,
       generatedSku,
+      categoryId,
       category || 'Bedsheets',
       sub_category || '',
       parseFloat(base_price) || 0,
