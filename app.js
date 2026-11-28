@@ -281,6 +281,23 @@ const deleteProductHandler = async (req, res) => {
   }
 };
 
+
+// Helper to safely normalize array/JSON fields
+const toJsonArray = (val) => {
+  if (Array.isArray(val)) return JSON.stringify(val.filter(Boolean));
+  if (typeof val === 'string' && val.trim()) {
+    try {
+      const parsed = JSON.parse(val);
+      if (Array.isArray(parsed)) return JSON.stringify(parsed.filter(Boolean));
+    } catch (_) {
+      return JSON.stringify(
+        val.split(/\r?\n|,/).map((s) => s.trim()).filter(Boolean)
+      );
+    }
+  }
+  return JSON.stringify([]);
+};
+
 app.delete('/api/products/:id', verifyToken, deleteProductHandler);
 app.delete('/api/admin/products/:id', verifyToken, deleteProductHandler);
 
